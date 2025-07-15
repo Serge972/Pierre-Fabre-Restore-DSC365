@@ -1,0 +1,513 @@
+﻿<#
+------------------------------------------------------------
+Auteur       : Serge THEZENAS
+Fonction     : Consultant M365
+Client       : Client Pierre FABRE
+Projet       : Extract + Restore + Notifications TEAMS + Logs HTML
+Module       : AZURE AD - Application
+Date         : 2025-07-14
+Objectif     : Restaurer une application Azure à partir d'un export M365DSC
+Script ID    : AZUREAD-EXTRACT-RESTORE-APPLICATION-v2.1-FIXED
+------------------------------------------------------------
+#>
+
+# === Paramètres à personnaliser ===
+$FilePS1_M365TenantConfig  = "C:\Export_Complet\Baseline_AZUREAD_ENTRAID_M365DSC_ExportConf_2025-07-08_10-15-50\M365TenantConfig.ps1"
+$TargetApplicationDisplayName = "BrowserStack"
+$OutputPs1Path = "C:\Script_complet\Scripts OK - PF Juin 2025\TEMPLATE_RESTO_OK\APPLI\TESTAPPLI\Restore_BrowserStack.ps1"
+
+$ApplicationId = "d8675be3-7948-43f5-b523-65cb92f49cc6"
+$TenantId = "M365x49418703.onmicrosoft.com"
+$CertificateThumbprint = "75957FDE297FEACA776AC429A970578B18CF0A66"
+
+# === Configuration des logs et notifications ===
+$LogDirectory = "C:\Script_complet\Scripts OK - PF Juin 2025\TEMPLATE_RESTO_OK\APPLI\TESTAPPLI\LOG"
+$LogFile = "$LogDirectory\ApplicationRestore_$(Get-Date -Format 'yyyy-MM-dd_HH-mm-ss').log"
+$ScriptStartTime = Get-Date
+
+# === Configuration des logs HTML ===
+$HtmlLogFile = "$LogDirectory\ApplicationRestore_$(Get-Date -Format 'yyyy-MM-dd_HH-mm-ss').html"
+$LogEntries = @()
+
+# Webhooks Teams
+$TeamsWebhookUrl = "https://m365x49418703.webhook.office.com/webhookb2/877876d7-2e60-490a-b390-2a7403c7e1d4@2a7dac32-723b-4d53-896c-4e864cd60080/IncomingWebhook/8c995232c0f84915bac3ca7d63e037e2/dc813e09-d917-4eae-b0bc-a22f08502f80/V2q9U5WkfbJA0489cQOcvAkIOrIwYrpogorKb1oxYfASQ1"
+$CriticalChangesWebhookUrl = "https://m365x49418703.webhook.office.com/webhookb2/877876d7-2e60-490a-b390-2a7403c7e1d4@2a7dac32-723b-4d53-896c-4e864cd60080/IncomingWebhook/dd3c61c0a9514c4f895c2d2100d2677b/dc813e09-d917-4eae-b0bc-a2ezf08502f80/V2hcH5pCsWCYqxJ8iPyaf7YyXjxnuP6zu-nGrujWT4JSk1"
+
+# -------------------------
+# Fonction de logging avancée avec HTML
+# -------------------------
+function Write-LogMessage {
+    param (
+        [string]$Message,
+        [ValidateSet("INFO", "WARNING", "ERROR", "SUCCESS", "DEBUG")]
+        [string]$Level = "INFO",
+        [string]$Component = "Main"
+    )
+
+    $Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $LogEntry = "$Timestamp [$Level] [$Component] $Message"
+    
+    # Créer le répertoire de logs s'il n'existe pas
+    if (-not (Test-Path $LogDirectory)) {
+        New-Item -ItemType Directory -Path $LogDirectory -Force | Out-Null
+    }
+    
+    # Écrire dans le fichier de log texte
+    Add-Content -Path $LogFile -Value $LogEntry -Encoding UTF8
+    
+    # Ajouter à la collection pour HTML
+    $Script:LogEntries += [PSCustomObject]@{
+        Timestamp = $Timestamp
+        Level = $Level
+        Component = $Component
+        Message = $Message
+    }
+    
+    # Afficher à l'écran avec couleurs
+    $Color = switch ($Level) {
+        "INFO"    { "White" }
+        "SUCCESS" { "Green" }
+        "WARNING" { "Yellow" }
+        "ERROR"   { "Red" }
+        "DEBUG"   { "Gray" }
+    }
+    
+    Write-Host $LogEntry -ForegroundColor $Color
+}
+
+# -------------------------
+# Fonction de génération du rapport HTML
+# -------------------------
+function Generate-HtmlReport {
+    $HtmlContent = @"
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Rapport de Restauration Application - $TargetApplicationDisplayName</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; background-color: #f5f5f5; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
+        .summary { background: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .logs-container { background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        table { width: 100%; border-collapse: collapse; }
+        th { background-color: #2c3e50; color: white; padding: 12px; text-align: left; }
+        td { padding: 10px; border-bottom: 1px solid #ecf0f1; }
+        .INFO { border-left: 4px solid #3498db; }
+        .SUCCESS { border-left: 4px solid #27ae60; background-color: #d5f4e6; }
+        .WARNING { border-left: 4px solid #f39c12; background-color: #fef9e7; }
+        .ERROR { border-left: 4px solid #e74c3c; background-color: #fadbd8; }
+        .DEBUG { border-left: 4px solid #95a5a6; background-color: #f8f9fa; }
+        .timestamp { color: #7f8c8d; font-size: 0.9em; }
+        .component { background-color: #ecf0f1; padding: 4px 8px; border-radius: 4px; font-size: 0.8em; }
+        .footer { text-align: center; color: #7f8c8d; margin-top: 20px; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔄 Rapport de Restauration Application M365DSC</h1>
+        <p><strong>Application:</strong> $TargetApplicationDisplayName</p>
+        <p><strong>Date d'exécution:</strong> $(Get-Date -Format 'dd/MM/yyyy HH:mm:ss')</p>
+    </div>
+    
+    <div class="summary">
+        <h2>📊 Résumé d'exécution</h2>
+        <p><strong>Durée totale:</strong> $TotalDuration secondes</p>
+        <p><strong>Nombre d'entrées de log:</strong> $($LogEntries.Count)</p>
+        <p><strong>Fichier de configuration:</strong> $FilePS1_M365TenantConfig</p>
+        <p><strong>Script généré:</strong> $OutputPs1Path</p>
+    </div>
+    
+    <div class="logs-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>⏰ Horodatage</th>
+                    <th>📋 Niveau</th>
+                    <th>🔧 Composant</th>
+                    <th>💬 Message</th>
+                </tr>
+            </thead>
+            <tbody>
+"@
+
+    foreach ($entry in $LogEntries) {
+        $HtmlContent += @"
+                <tr class="$($entry.Level)">
+                    <td class="timestamp">$($entry.Timestamp)</td>
+                    <td><span class="component">$($entry.Level)</span></td>
+                    <td>$($entry.Component)</td>
+                    <td>$($entry.Message)</td>
+                </tr>
+"@
+    }
+
+    $HtmlContent += @"
+            </tbody>
+        </table>
+    </div>
+    
+    <div class="footer">
+        <p>Généré par Extract_Restore_Application.ps1 - M365DSC Application Restore</p>
+    </div>
+</body>
+</html>
+"@
+
+    Set-Content -Path $HtmlLogFile -Value $HtmlContent -Encoding UTF8
+}
+
+# ----------------------------------------------------
+# Fonction d'envoi Teams pour restauration Application
+# ----------------------------------------------------
+function Send-ApplicationRestoreTeamsNotification {
+    param (
+        [string]$Message,
+        [string]$Status,
+        [string]$WebhookUrl = $TeamsWebhookUrl,
+        [string]$DisplayName = $TargetApplicationDisplayName,
+        [string]$Step = "",
+        [System.Collections.Hashtable]$Details = $null
+    )
+
+    $Payload = @{
+        "@type"      = "MessageCard"
+        "@context"   = "http://schema.org/extensions"
+        "themeColor" = switch ($Status) {
+            "Success" { "00FF00" }
+            "Failure" { "FF0000" }
+            "Warning" { "FFFF00" }
+            "Info"    { "0078D4" }
+            default   { "808080" }
+        }
+        "summary"    = "Restauration Application M365DSC"
+        "sections"   = @(
+            @{
+                "activityTitle"    = "🔄 Restauration DSC - Application AzureAD/EntraID"
+                "activitySubtitle" = "Statut : $Status"
+                "activityImage"    = "https://raw.githubusercontent.com/Serge972/logosDSC365/main/Azure.png"
+                "facts"            = @(
+                    @{ "name" = "👤 Application"; "value" = $DisplayName },
+                    @{ "name" = "📋 Étape"; "value" = $Step },
+                    @{ "name" = "💬 Message"; "value" = $Message },
+                    @{ "name" = "⏰ Horodatage"; "value" = (Get-Date -Format "yyyy-MM-dd HH:mm:ss") }
+                )
+                "text"             = ""
+            }
+        )
+    }
+
+    # Ajouter des détails supplémentaires si fournis
+    if ($Details -and $Details.Count -gt 0) {
+        foreach ($detail in $Details.GetEnumerator()) {
+            $Payload.sections[0].facts += @{ "name" = $detail.Key; "value" = $detail.Value }
+        }
+    }
+
+    $JsonPayload = $Payload | ConvertTo-Json -Depth 4 -Compress
+    
+    try {
+        Invoke-RestMethod -Uri $WebhookUrl -Method Post -ContentType 'application/json; charset=utf-8' -Body $JsonPayload
+        Write-LogMessage "Notification Teams envoyée avec succès pour l'étape: $Step" "SUCCESS" "TeamsNotification"
+    }
+    catch {
+        Write-LogMessage "Erreur d'envoi Teams pour l'étape $Step : $_" "ERROR" "TeamsNotification"
+    }
+}
+
+# -------------------------
+# Fonction de gestion des erreurs critiques
+# -------------------------
+function Send-CriticalErrorNotification {
+    param (
+        [string]$ErrorMessage,
+        [string]$Step,
+        [string]$Exception = ""
+    )
+    
+    Write-LogMessage "ERREUR CRITIQUE dans l'étape '$Step': $ErrorMessage" "ERROR" "CriticalError"
+    
+    $Details = @{
+        "🚨 Type d'erreur" = "CRITIQUE"
+        "⚠️ Exception" = if ($Exception) { $Exception } else { "Non spécifiée" }
+        "📁 Fichier log" = $LogFile
+    }
+    
+    Send-ApplicationRestoreTeamsNotification -Message $ErrorMessage -Status "Failure" -WebhookUrl $CriticalChangesWebhookUrl -Step $Step -Details $Details
+}
+
+
+# === Étape 1 : Vérification du fichier source
+
+Write-LogMessage "ÉTAPE 1: Vérification du fichier source" "INFO" "FileValidation"
+
+if (-not (Test-Path $FilePS1_M365TenantConfig)) {
+    $ErrorMsg = "Le fichier $FilePS1_M365TenantConfig n'existe pas."
+    Send-CriticalErrorNotification -ErrorMessage $ErrorMsg -Step "1️⃣ Vérification fichier source"
+    exit 1
+}
+
+Write-LogMessage "Fichier source trouvé et accessible" "SUCCESS" "FileValidation"
+Send-ApplicationRestoreTeamsNotification -Message "Fichier de configuration M365DSC trouvé et accessible" -Status "Success" -Step "1️⃣ Vérification fichier source"
+
+
+# === Étape 2 : Lecture et analyse du contenu ===
+Write-LogMessage "ÉTAPE 2: Lecture et analyse du contenu du fichier" "INFO" "ContentAnalysis"
+
+try {
+    $content = Get-Content -Path $FilePS1_M365TenantConfig -Raw
+    $contentSize = [math]::Round($content.Length / 1KB, 2)
+    Write-LogMessage "Contenu lu avec succès. Taille: $contentSize KB" "SUCCESS" "ContentAnalysis"
+}
+catch {
+    $ErrorMsg = "Impossible de lire le fichier: $($_.Exception.Message)"
+    Send-CriticalErrorNotification -ErrorMessage $ErrorMsg -Step "2️⃣ Lecture fichier" -Exception $_.Exception.Message
+    exit 1
+}
+
+$resourceName = "AADApplication-$TargetApplicationDisplayName"
+Write-LogMessage "Recherche du bloc ressource: $resourceName" "INFO" "ContentAnalysis"
+
+# === Étape 3 : Extraction du bloc AADApplication ===
+Write-LogMessage "ÉTAPE 3: Extraction du bloc AADApplication" "INFO" "BlockExtraction"
+
+# Recherche du bloc AADApplication
+$startIndex = $content.IndexOf("AADApplication `"$resourceName`"")
+if ($startIndex -lt 0) {
+    $ErrorMsg = "Aucun bloc AADApplication trouvé pour $TargetApplicationDisplayName"
+    Send-CriticalErrorNotification -ErrorMessage $ErrorMsg -Step "3️⃣ Extraction bloc AADApplication"
+    exit 1
+}
+
+Write-LogMessage "Bloc AADApplication trouvé à l'index: $startIndex" "SUCCESS" "BlockExtraction"
+
+$braceStartIndex = $content.IndexOf("{", $startIndex)
+if ($braceStartIndex -lt 0) {
+    $ErrorMsg = "Accolade ouvrante introuvable."
+    Send-CriticalErrorNotification -ErrorMessage $ErrorMsg -Step "3️⃣ Extraction bloc AADApplication"
+    exit 1
+}
+
+Write-LogMessage "Accolade ouvrante trouvée à l'index: $braceStartIndex" "DEBUG" "BlockExtraction"
+
+# Extraction du bloc entre accolades
+function Extract-BlockContent {
+    param (
+        [string]$text,
+        [int]$startIndex
+    )
+    $braceCount = 0
+    $pos = $startIndex
+    while ($pos -lt $text.Length) {
+        if ($text[$pos] -eq '{') { $braceCount++ }
+        elseif ($text[$pos] -eq '}') { $braceCount-- }
+        $pos++
+        if ($braceCount -eq 0) {
+            return $text.Substring($startIndex, $pos - $startIndex)
+        }
+    }
+    return $null
+}
+
+Write-LogMessage "Bloc extrait avec succès. Taille: $($rawBlock.Length) caractères" "SUCCESS" "BlockExtraction"
+
+# === Fonction Clean-DSCBlock ULTRA ROBUSTE AVEC CORRECTIONS ===
+function Clean-DSCBlock {
+    param ([string]$rawBlock)
+    $blockLines = $rawBlock -split "`n"
+
+    # Suppression accolades ouvrante/fermante
+    if ($blockLines.Count -gt 0 -and $blockLines[0].Trim() -eq '{') {
+        $blockLines = $blockLines[1..($blockLines.Count-1)]
+    }
+    if ($blockLines.Count -gt 0 -and $blockLines[-1].Trim() -eq '}') {
+        $blockLines = $blockLines[0..($blockLines.Count-2)]
+    }
+    if ($blockLines.Count -eq 0) {
+        throw "Bloc DSC vide après suppression des accolades !"
+    }
+
+    $correctedBlock = @()
+    $indentLevel = 0
+
+    foreach ($line in $blockLines) {
+        $lineTrim = $line.Trim()
+        if ($lineTrim -ne "") {
+            # Remplacement des références NonNodeData par paramètres
+            $lineClean = $lineTrim -replace '\$ConfigurationData\.NonNodeData\.ApplicationId', '$ApplicationId'
+            $lineClean = $lineClean -replace '\$ConfigurationData\.NonNodeData\.CertificateThumbprint', '$CertificateThumbprint'
+            $lineClean = $lineClean -replace '\$ConfigurationData\.NonNodeData\.TenantId', '$TenantId'
+            $lineClean = $lineClean -replace '\$OrganizationName', '$TenantId'
+
+            $correctedBlock += (' ' * ($indentLevel * 4)) + $lineClean
+        }
+    }
+    return $correctedBlock
+}
+
+# === Étape 4 : Nettoyage et transformation du bloc ===
+Write-LogMessage "ÉTAPE 4: Nettoyage et transformation du bloc" "INFO" "BlockProcessing"
+
+try {
+    $cleanedBlockLines = @($(Clean-DSCBlock -rawBlock $rawBlock))
+    $processedLines = $cleanedBlockLines.Count
+    Write-LogMessage "Transformation terminée. $processedLines lignes traitées" "SUCCESS" "BlockProcessing"
+    
+    if (-not $cleanedBlockLines -or $cleanedBlockLines.Count -eq 0) {
+        throw "Le bloc DSC généré est vide après nettoyage"
+    }
+    
+    # Indentation correcte pour DSC
+    $indentedBlock = ($cleanedBlockLines | ForEach-Object { "            $_" }) -join "`n"
+    Write-LogMessage "Bloc DSC généré avec succès" "SUCCESS" "DSCGeneration"
+    
+    # Notification de succès étape 4
+    $Details = @{
+        "📏 Lignes traitées" = $processedLines
+        "✅ Statut" = "Nettoyage réussi"
+        "🔧 Corrections" = "ConfigurationData -> paramètres directs"
+    }
+    Send-ApplicationRestoreTeamsNotification -Message "Bloc DSC nettoyé et formaté avec succès" -Status "Success" -Step "4️⃣ Nettoyage bloc" -Details $Details
+    
+} catch {
+    $ErrorMsg = "Erreur lors du nettoyage du bloc DSC: $($_.Exception.Message)"
+    Send-CriticalErrorNotification -ErrorMessage $ErrorMsg -Step "4️⃣ Nettoyage bloc" -Exception $_.Exception.Message
+    exit 1
+}
+
+# === Étape 5 : Génération du script de restauration ===
+Write-LogMessage "ÉTAPE 5: Génération du script de restauration" "INFO" "ScriptGeneration"
+
+# Vérification et nettoyage final du bloc indenté
+$finalBlock = $indentedBlock.Trim()
+if ([string]::IsNullOrWhiteSpace($finalBlock)) {
+    $ErrorMsg = "Le bloc DSC final est vide après indentation"
+    Send-CriticalErrorNotification -ErrorMessage $ErrorMsg -Step "5️⃣ Génération script"
+    exit 1
+}
+
+# Construction du script RestoreApplication.ps1 avec structure DSC correcte
+$scriptContent = @"
+Configuration RestoreApplication
+{
+    param(
+        [Parameter(Mandatory = `$true)]
+        [String]`$ApplicationId,
+
+        [Parameter(Mandatory = `$true)]
+        [String]`$CertificateThumbprint,
+
+        [Parameter(Mandatory = `$true)]
+        [String]`$TenantId
+    )
+
+    Import-DscResource -ModuleName Microsoft365DSC
+
+    Node localhost
+    {
+        AADApplication "$resourceName"
+        {
+$finalBlock
+        }
+    }
+}
+
+# Compilation automatique de la configuration
+RestoreApplication -ApplicationId `$ApplicationId -CertificateThumbprint `$CertificateThumbprint -TenantId `$TenantId -OutputPath ".\RestoreApplication"
+"@
+
+Write-LogMessage "Script de restauration généré avec succès" "SUCCESS" "ScriptGeneration"
+
+# === Étape 6 : Sauvegarde du script ===
+Write-LogMessage "ÉTAPE 6: Sauvegarde du script de restauration" "INFO" "ScriptSave"
+
+$dir = Split-Path -Path $OutputPs1Path -Parent
+if (-not (Test-Path $dir)) {
+    New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    Write-LogMessage "Répertoire créé: $dir" "INFO" "ScriptSave"
+}
+
+try {
+    Set-Content -Path $OutputPs1Path -Value $scriptContent -Encoding UTF8
+    $fileSize = [math]::Round((Get-Item $OutputPs1Path).Length / 1KB, 2)
+    Write-LogMessage "Script sauvegardé avec succès. Taille: $fileSize KB" "SUCCESS" "ScriptSave"
+    
+    $Details = @{
+        "📁 Chemin" = $OutputPs1Path
+        "📊 Taille" = "$fileSize KB"
+        "🔧 Lignes traitées" = $processedLines
+    }
+    Send-ApplicationRestoreTeamsNotification -Message "Script Restore_BrowserStack.ps1 généré avec succès" -Status "Success" -Step "6️⃣ Génération script" -Details $Details
+    
+} catch {
+    $ErrorMsg = "Erreur lors de la sauvegarde: $($_.Exception.Message)"
+    Send-CriticalErrorNotification -ErrorMessage $ErrorMsg -Step "6️⃣ Sauvegarde script" -Exception $_.Exception.Message
+    exit 1
+}
+
+# === Étape 7 : Chargement et compilation DSC CORRIGÉE ===
+try {
+    . $OutputPs1Path
+    Write-LogMessage "Script RestoreApplication.ps1 chargé" "SUCCESS" "DSCCompilation"
+
+    $startTime = Get-Date
+    RestoreApplication -ApplicationId $ApplicationId -CertificateThumbprint $CertificateThumbprint -TenantId $TenantId
+    $endTime = Get-Date
+    $duration = [math]::Round(($endTime - $startTime).TotalSeconds, 2)
+    Write-LogMessage "Compilation DSC réussie en $duration secondes" "SUCCESS" "DSCCompilation"
+} catch {
+    Send-CriticalErrorNotification -ErrorMessage "Erreur compilation DSC: $_" -Step "Compilation DSC"
+    exit 1
+}
+
+# -------------------------------------
+# Étape 8 : Application de la configuration
+# -------------------------------------
+
+Write-LogMessage "ÉTAPE 8: Application de la configuration DSC" "INFO" "DSCApplication"
+
+try {
+    $applicationStart = Get-Date
+    Start-DscConfiguration -Path $outputDir -Wait -Verbose -Force
+    $applicationEnd = Get-Date
+    $applicationDuration = [math]::Round(($applicationEnd - $applicationStart).TotalSeconds, 2)
+    
+    Write-LogMessage "Configuration DSC appliquée avec succès en $applicationDuration secondes" "SUCCESS" "DSCApplication"
+    
+    $Details = @{
+        "⏱️ Durée application" = "$applicationDuration secondes"
+        "✅ Statut" = "Configuration appliquée"
+        "📁 Chemin config" = $outputDir
+    }
+    Send-ApplicationRestoreTeamsNotification -Message "Configuration DSC appliquée avec succès" -Status "Success" -Step "8️⃣ Application DSC" -Details $Details
+}
+catch {
+    $ErrorMsg = "Échec application de la configuration DSC: $($_.Exception.Message)"
+    Send-CriticalErrorNotification -ErrorMessage $ErrorMsg -Step "8️⃣ Application DSC" -Exception $_.Exception.Message
+    exit 1
+}
+
+# === Résumé final ===
+$ScriptEndTime = Get-Date
+$TotalDuration = [math]::Round(($ScriptEndTime - $ScriptStartTime).TotalSeconds, 2)
+
+Write-LogMessage "========================================" "INFO" "Completion"
+Write-LogMessage "SUCCÈS - Restauration application terminée" "SUCCESS" "Completion"
+Write-LogMessage "Durée totale: $TotalDuration secondes" "INFO" "Completion"
+Write-LogMessage "Fichier de log: $LogFile" "INFO" "Completion"
+Write-LogMessage "========================================" "INFO" "Completion"
+
+# Génération du rapport HTML
+Generate-HtmlReport
+Write-LogMessage "Rapport HTML généré: $HtmlLogFile" "SUCCESS" "HtmlReport"
+
+# Notification finale de succès
+$FinalDetails = @{
+    "⏱️ Durée totale" = "$TotalDuration secondes"
+    "👤 Application restaurée" = $TargetApplicationDisplayName
+    "📋 Fichier log" = $LogFile
+    "📊 Rapport HTML" = $HtmlLogFile
+    "✅ Statut final" = "SUCCÈS COMPLET"
+}
+
+Send-ApplicationRestoreTeamsNotification -Message "🎉 Restauration application terminée avec succès !" -Status "Success" -Step "✅ Finalisation" -Details $FinalDetails
