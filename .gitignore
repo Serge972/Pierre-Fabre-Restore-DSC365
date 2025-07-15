@@ -1,0 +1,22 @@
+# Logs et rapports
+*.log
+*.html
+
+# Fichiers MOF (résultats DSC)
+*.mof
+
+# Archives, backups, dumps
+*.zip
+
+# Dossiers d'output
+/Output/
+/Logs/
+/HTMLReports/
+
+# Fichiers temporaires OS
+*.tmp
+Thumbs.db
+.DS_Store
+
+# Paramètres ou secrets éventuels (à adapter selon ton projet)
+secrets.txt
