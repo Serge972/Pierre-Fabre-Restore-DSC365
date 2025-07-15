@@ -1,0 +1,10 @@
+"Team.ReadBasic.All",
+"ChannelSettings.ReadWrite.All",
+"TeamSettings.ReadWrite.All"
+"Channel.ReadBasic.All",
+"Chat.ReadWrite.All",
+"TeamsConfiguration.Read.All"
+"CallQueue.Read.All"
+
+
+Avec le rôle "Teams Communications Support Engineer".

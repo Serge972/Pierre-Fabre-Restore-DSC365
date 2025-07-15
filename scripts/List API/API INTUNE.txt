@@ -1,0 +1,6 @@
+"DeviceManagementApps.ReadWrite.All"
+"DeviceManagementConfiguration.ReadWrite.All"
+"DeviceManagementManagedDevices.ReadWrite.All"
+"DeviceManagementServiceConfig.Read.All"
+"DeviceManagementRBAC.Read.All"
+"Directory.ReadWrite.All"

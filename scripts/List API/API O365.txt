@@ -1,0 +1,22 @@
+"Organization.Read.All",
+"ExternalConnection.Read.All",
+"Group.Read.All",
+"Application.ReadWrite.All",
+"Reports.Read.All",
+"Forms.Read.All",
+"DeviceManagementConfiguration.Read.All",
+"Application.ReadWrite.All",
+"ReportSettings.Read.All",
+"OrgSettings-Microsoft365Install.Read.All",
+"OrgSettings-Forms.Read.All",
+"OrgSettings-Todo.Read.All",
+"OrgSettings-AppsAndServices.Read.All", 
+"OrgSettings-DynamicsVoice.Read.All", 
+"Tasks.Read.All",
+"PeopleSettings.Read.All",
+
+Rôles :
+Reports Reader (pour reportSettings)
+Application Administrator (pour microsoft365Apps)
+Organization Configuration
+Audit Logs

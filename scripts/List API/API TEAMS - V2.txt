@@ -1,0 +1,11 @@
+"Organization.Read.All", 
+"User.Read.All", 
+"Group.ReadWrite.All, 
+"AppCatalog.ReadWrite.All,
+TeamSettings.ReadWrite.All", 
+"Channel.Delete.All", 
+"ChannelSettings.ReadWrite.All", 
+"ChannelMember.ReadWrite.All",
+
+
+Avec le rôle "Teams Communications Support Engineer".

@@ -1,0 +1,17 @@
+API AZURE
+
+"OrgSettings-Microsoft365Install.Read.All"
+"Application.Read.All"
+"AppRoleAssignment.Read.All"
+"Directory.Read.All"
+"Group.Read.All"
+"User.Read.All"
+"RoleManagement.Read.Directory"
+"Policy.Read.All"
+"IdentityProvider.Read.All"
+"EntitlementManagement.Read.All"
+"AuditLog.Read.All"
+"IdentityProvider.Read.All"
+"EntitlementManagement.Read.All"
+
+-	Ajouter en amont le rôle « Privileged Role Administrator » pour notre application Azure

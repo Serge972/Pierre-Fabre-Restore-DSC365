@@ -1,0 +1,10 @@
+API EXCHANGE ONLINE
+
+"Exchange.ManageAsApp" ===> Le faire manuellement
+"Mail.ReadWrite"
+"MailboxSettings.ReadWrite"
+"Mail.Send"
+"Contacts.ReadWrite"
+
+
+L'application doit avoir le rôle "EXCHANGE ADMINISTRATOR" 

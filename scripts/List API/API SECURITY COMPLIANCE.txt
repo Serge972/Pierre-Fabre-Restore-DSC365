@@ -1,0 +1,7 @@
+"SecurityEvents.Read.All"
+"DeviceManagementConfiguration.Read.All"
+"IdentityRiskEvent.Read.All"
+"Reports.Read.All"
+
+
+Il faut que l'application ait le rôle Administrateur de mise en conformité !

@@ -1,0 +1,5 @@
+"Sites.Read.All",
+"SharePointTenantSettings.Read.All"
+"SharePoint.Read.All"
+"Sites.Manage.All", ====> Dans l'onglet SharePoint dans les API
+"Sites.FullControl.All", ====> Dans l'onglet SharePoint dans les API

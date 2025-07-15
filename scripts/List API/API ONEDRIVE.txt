@@ -1,0 +1,4 @@
+"Sites.Manage.All",
+"Sites.FullControl.All"
+
+Dans l'onglet SharePoint via les API
